@@ -211,5 +211,107 @@ class ManagerTests(unittest.TestCase):
         self.assertTrue((self.directory / ".env").exists())
 
 
+class MenuTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(dir=Path(__file__).parent)
+        self.addCleanup(self.temp.cleanup)
+        self.directory = Path(self.temp.name) / "managed"
+        self.output = io.StringIO()
+
+    def run_menu(self, answers, result=0):
+        with patch("builtins.input", side_effect=answers), patch.object(app, "main", return_value=result) as command, contextlib.redirect_stdout(self.output):
+            self.assertEqual(app.menu(self.directory), 0)
+        return command
+
+    def test_no_command_opens_menu_without_creating_directory(self):
+        with patch.object(app, "menu", return_value=0) as menu:
+            self.assertEqual(app.main(["--directory", str(self.directory)]), 0)
+        menu.assert_called_once_with(self.directory)
+        self.assertFalse(self.directory.exists())
+
+    def test_explicit_menu_command(self):
+        with patch.object(app, "menu", return_value=0) as menu:
+            self.assertEqual(app.main(["--directory", str(self.directory), "menu"]), 0)
+        menu.assert_called_once_with(self.directory)
+
+    def test_header_and_exit(self):
+        command = self.run_menu(["0"])
+        self.assertIn("ModernSoft", self.output.getvalue())
+        command.assert_not_called()
+        self.assertFalse(self.directory.exists())
+
+    def test_persian_and_arabic_numbers(self):
+        command = self.run_menu(["۶", "بله", "٦", "yes", "۰"])
+        self.assertEqual(command.call_count, 2)
+        command.assert_called_with(["--directory", str(self.directory), "status"])
+
+    def test_install_wizard_retries_invalid_fields(self):
+        command = self.run_menu(["1", "latest", "۲.۱.۰", "https://bad", "n8n.example.com", "Bad/Zone", "UTC", "yes", "0"])
+        command.assert_called_once_with(["--directory", str(self.directory), "install", "--version", "2.1.0", "--domain", "n8n.example.com", "--timezone", "UTC"])
+        self.assertIn("نسخه نامعتبر", self.output.getvalue())
+
+    def test_local_install_defaults(self):
+        command = self.run_menu(["1", "2.1.0", "", "", "بله", "0"])
+        command.assert_called_once_with(["--directory", str(self.directory), "install", "--version", "2.1.0", "--domain", "", "--timezone", "Asia/Tehran"])
+        self.assertIn("تونل SSH", self.output.getvalue())
+
+    def test_cancel_wizard_with_q(self):
+        command = self.run_menu(["1", "q", "0"])
+        command.assert_not_called()
+
+    def test_default_confirmation_is_no(self):
+        command = self.run_menu(["10", "", "0"])
+        command.assert_not_called()
+
+    def test_uninstall_requires_confirmation(self):
+        command = self.run_menu(["10", "بله", "0"])
+        command.assert_called_once_with(["--directory", str(self.directory), "uninstall", "--confirm"])
+        self.assertIn("باقی می‌مانند", self.output.getvalue())
+
+    def test_update_requires_exact_version_and_confirmation(self):
+        command = self.run_menu(["9", "2.2.0", "y", "0"])
+        command.assert_called_once_with(["--directory", str(self.directory), "update", "--version", "2.2.0"])
+        self.assertIn("متوقف", self.output.getvalue())
+
+    def test_all_simple_options(self):
+        for choice, action in {"2": "doctor", "3": "start", "4": "stop", "5": "restart", "6": "status", "7": "logs", "8": "backup"}.items():
+            with self.subTest(choice=choice):
+                command = self.run_menu([choice, "yes", "0"])
+                command.assert_called_once_with(["--directory", str(self.directory), action])
+
+    def test_failed_operation_returns_to_menu(self):
+        command = self.run_menu(["6", "yes", "0"], result=1)
+        command.assert_called_once()
+        self.assertIn("عملیات کامل نشد", self.output.getvalue())
+        self.assertGreaterEqual(self.output.getvalue().count("ModernSoft"), 2)
+
+    def test_help_and_invalid_selection_do_not_run_commands(self):
+        command = self.run_menu(["invalid", "12", "0"])
+        command.assert_not_called()
+        self.assertIn("گزینه نامعتبر", self.output.getvalue())
+        self.assertIn("Docker", self.output.getvalue())
+
+    def test_change_directory(self):
+        other = Path(self.temp.name) / "other installation"
+        command = self.run_menu(["11", str(other), "6", "yes", "0"])
+        command.assert_called_once_with(["--directory", str(other), "status"])
+        self.assertFalse(other.exists())
+
+    def test_root_directory_is_rejected(self):
+        command = self.run_menu(["11", "/", "6", "yes", "0"])
+        command.assert_called_once_with(["--directory", str(self.directory), "status"])
+
+    def test_invalid_directory_returns_to_menu(self):
+        command = self.run_menu(["11", "bad\x00path", "0"])
+        command.assert_not_called()
+        self.assertIn("مسیر معتبر", self.output.getvalue())
+
+    def test_eof_and_keyboard_interrupt_exit_cleanly(self):
+        for interruption in (EOFError, KeyboardInterrupt):
+            with self.subTest(interruption=interruption):
+                command = self.run_menu([interruption])
+                command.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()

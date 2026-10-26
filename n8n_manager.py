@@ -259,10 +259,11 @@ def parser():
     cli = argparse.ArgumentParser(
         description="Independent n8n deployment manager: PostgreSQL, optional HTTPS, private backups and explicit-version updates. Requires Linux, Python 3.10+, Docker Engine and Compose v2. No remote installation scripts are executed.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="Examples (replace VERSION with a verified n8n release):\n  bash n8n.sh doctor\n  bash n8n.sh install --version VERSION --domain n8n.example.com\n  bash n8n.sh install --version VERSION\n  bash n8n.sh backup\n  bash n8n.sh update --version VERSION\n  bash n8n.sh --directory /srv/n8n status\n\nRun consistently as the same OS user and with the same directory.\nNo Docker installation, firewall changes or unattended updates are performed.\nBackups require maintenance downtime and include sensitive encryption material.\nRestore is a manual PostgreSQL/application-volume recovery, not an automatic rollback.",
+        epilog="Start the interactive ModernSoft menu:\n  bash n8n.sh\n\nCommand-line examples (replace VERSION with a verified n8n release):\n  bash n8n.sh doctor\n  bash n8n.sh install --version VERSION --domain n8n.example.com\n  bash n8n.sh install --version VERSION\n  bash n8n.sh backup\n  bash n8n.sh update --version VERSION\n  bash n8n.sh --directory /srv/n8n status\n\nRun consistently as the same OS user and with the same directory.\nNo Docker installation, firewall changes or unattended updates are performed.\nBackups require maintenance downtime and include sensitive encryption material.\nRestore is a manual PostgreSQL/application-volume recovery, not an automatic rollback.",
     )
     cli.add_argument("--directory", type=Path, default=Path.cwd() / "n8n-managed", help="Dedicated installation directory (default: ./n8n-managed)")
-    commands = cli.add_subparsers(dest="command", required=True)
+    commands = cli.add_subparsers(dest="command")
+    commands.add_parser("menu", help="Open the ModernSoft interactive Persian menu (default)")
     install = commands.add_parser("install", help="Create and start a new installation")
     install.add_argument("--version", type=version, required=True, help="Exact n8n stable version to install")
     install.add_argument("--domain", type=domain_name, default="", help="Public DNS domain; omit for loopback-only mode")
@@ -294,9 +295,144 @@ def installation_lock(directory):
         yield
 
 
+class MenuCancelled(Exception):
+    pass
+
+
+def menu_input(prompt):
+    value = input(prompt).strip()
+    if value.lower() == "q":
+        raise MenuCancelled
+    return value
+
+
+def menu_value(prompt, validator, hint, default=None):
+    while True:
+        value = menu_input(prompt) or default
+        try:
+            if value is None:
+                raise argparse.ArgumentTypeError("Required")
+            return validator(value)
+        except argparse.ArgumentTypeError:
+            print(hint)
+
+
+def menu_confirm(message):
+    return menu_input(message + " [بله/خیر، پیش‌فرض: خیر]: ").lower() in {"بله", "yes", "y"}
+
+
+def menu(directory):
+    digits = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
+    actions = {"2": "doctor", "3": "start", "4": "stop", "5": "restart",
+               "6": "status", "7": "logs", "8": "backup", "10": "uninstall"}
+    labels = {"install": "نصب", "doctor": "بررسی پیش‌نیازها", "start": "راه‌اندازی",
+              "stop": "توقف", "restart": "راه‌اندازی مجدد", "status": "نمایش وضعیت",
+              "logs": "نمایش گزارش‌ها", "backup": "پشتیبان‌گیری", "update": "به‌روزرسانی",
+              "uninstall": "حذف سرویس"}
+    try:
+        while True:
+            print("\n" + "=" * 48)
+            print("                   ModernSoft")
+            print("          نصب و مدیریت آسان n8n")
+            print("=" * 48)
+            print(f"پوشهٔ نصب انتخاب‌شده: {os.path.relpath(directory)}")
+            print("۱. نصب جدید (راهنمای قدم‌به‌قدم)")
+            print("۲. بررسی پیش‌نیازهای سرور")
+            print("۳. روشن کردن سرویس‌ها")
+            print("۴. خاموش کردن سرویس‌ها (بدون حذف اطلاعات)")
+            print("۵. راه‌اندازی مجدد n8n")
+            print("۶. نمایش وضعیت سرویس‌ها")
+            print("۷. نمایش ۱۰۰ خط آخر گزارش‌ها")
+            print("۸. تهیهٔ نسخهٔ پشتیبان")
+            print("۹. به‌روزرسانی n8n (با بکاپ قبل از ارتقا)")
+            print("۱۰. حذف سرویس‌ها (با حفظ اطلاعات و بکاپ‌ها)")
+            print("۱۱. انتخاب پوشهٔ نصب دیگر")
+            print("۱۲. راهنما و پیش‌نیازها")
+            print("۰. خروج")
+            print("در هر پرسش با q به منو برگردید؛ بدون تأیید، عملیاتی انجام نمی‌شود.")
+            try:
+                choice = menu_input("شمارهٔ گزینه: ").translate(digits)
+                if choice == "0":
+                    print("از ModernSoft استفاده کردید؛ خدانگهدار.")
+                    return 0
+                if choice == "12":
+                    print("\nاین ابزار را روی سرور لینوکسی با Python 3.10+، Docker Engine و Docker Compose v2 اجرا کنید.")
+                    print("برای شروع گزینهٔ ۲ و سپس ۱ را انتخاب کنید. این ابزار Docker را خودکار نصب نمی‌کند.")
+                    print("نسخهٔ دقیق n8n را از انتشارهای رسمی انتخاب کنید؛ latest پذیرفته نمی‌شود.")
+                    print("برای HTTPS، دامنه باید به سرور متصل باشد و پورت‌های ۸۰ و ۴۴۳ باز باشند.")
+                    print("بدون دامنه، دسترسی فقط محلی و از طریق تونل SSH است؛ روی IP عمومی منتشر نمی‌شود.")
+                    print("بکاپ و آپدیت باعث توقف موقت n8n می‌شوند. بکاپ محرمانه است؛ بازیابی آن دستی است.")
+                    print("پس از نصب، حساب مالک را فوراً داخل n8n بسازید. رمز پیش‌فرض وجود ندارد.")
+                    print("همیشه از همان کاربر سیستم و همان پوشهٔ نصب استفاده کنید؛ گزینهٔ ۱۱ پوشه را تغییر می‌دهد.")
+                    continue
+                if choice == "11":
+                    value = menu_input("مسیر پوشهٔ نصب (Enter: بدون تغییر): ")
+                    if value:
+                        try:
+                            selected = Path(value).expanduser().resolve()
+                        except (OSError, RuntimeError, ValueError):
+                            print("مسیر معتبر و قابل دسترسی وارد کنید.")
+                            continue
+                        if selected == selected.parent:
+                            print("ریشهٔ سیستم مجاز نیست؛ یک پوشهٔ اختصاصی انتخاب کنید.")
+                        else:
+                            directory = selected
+                    continue
+                options = []
+                if choice in {"1", "9"}:
+                    action = "install" if choice == "1" else "update"
+                    print("نسخهٔ دقیق انتشار رسمی را وارد کنید (سه عدد با نقطه، نه latest).")
+                    target = menu_value("نسخهٔ n8n: ", lambda v: version(v.translate(digits)),
+                                        "نسخه نامعتبر است؛ سه عدد با نقطه وارد کنید، مانند 2.1.0.")
+                    options = ["--version", target]
+                    if action == "install":
+                        print("دامنه اختیاری است؛ خالی یعنی نصب امنِ محلی و دسترسی با تونل SSH.")
+                        domain = menu_value("دامنه (بدون https://؛ Enter: محلی): ",
+                                            lambda v: domain_name(v) if v else "",
+                                            "دامنه معتبر و بدون مسیر یا پورت وارد کنید.", default="")
+                        timezone = menu_value("منطقهٔ زمانی [Asia/Tehran]: ", timezone_name,
+                                              "منطقهٔ زمانی معتبر وارد کنید؛ مانند Asia/Tehran یا UTC.",
+                                              default="Asia/Tehran")
+                        options += ["--domain", domain, "--timezone", timezone]
+                        print(f"نسخه: {target} | دامنه: {domain or 'محلی؛ فقط تونل SSH'} | منطقهٔ زمانی: {timezone}")
+                    else:
+                        print(f"نسخهٔ مقصد: {target}. یادداشت‌های مهاجرت این نسخه را بررسی کنید؛ بازگشت خودکار وجود ندارد.")
+                elif choice in actions:
+                    action = actions[choice]
+                else:
+                    print("گزینه نامعتبر است؛ یکی از شماره‌های منو را انتخاب کنید.")
+                    continue
+                if action in {"stop", "restart", "backup", "update"}:
+                    print("هشدار: این عملیات می‌تواند n8n و گردش‌کارهای در حال اجرا را موقتاً متوقف کند.")
+                if action == "backup":
+                    print("بکاپ شامل اطلاعات محرمانه است؛ آن را خصوصی و در جای امن نگهداری کنید.")
+                if action == "logs":
+                    print("گزارش‌ها ممکن است اطلاعات خصوصی داشته باشند؛ پیش از اشتراک‌گذاری بررسی کنید.")
+                if action == "uninstall":
+                    print("کانتینرها و شبکه حذف می‌شوند؛ اطلاعات، تنظیمات و بکاپ‌ها باقی می‌مانند.")
+                    options = ["--confirm"]
+                if not menu_confirm(f"عملیات «{labels[action]}» در پوشهٔ {os.path.relpath(directory)} انجام شود؟"):
+                    print("عملیات لغو شد؛ تغییری انجام نشد.")
+                    continue
+                result = main(["--directory", str(directory), action, *options])
+                if result == 0:
+                    print("عملیات با موفقیت انجام شد.")
+                    if action == "install":
+                        print("نصب تمام شد؛ حساب مالک را فوراً در n8n ایجاد کنید.")
+                else:
+                    print("عملیات کامل نشد؛ پیام خطا را بررسی کنید. برای بررسی، گزینهٔ ۲ یا ۶ را انتخاب کنید.")
+            except MenuCancelled:
+                print("بازگشت به منو؛ عملیاتی شروع نشد.")
+    except (EOFError, KeyboardInterrupt):
+        print("\nخروج از منوی ModernSoft.")
+        return 0
+
+
 def main(argv=None):
     args = parser().parse_args(argv)
     directory = args.directory.expanduser().resolve()
+    if args.command in {None, "menu"}:
+        return menu(directory)
     os.umask(0o077)
     try:
         if directory == directory.parent:
