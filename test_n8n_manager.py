@@ -323,6 +323,29 @@ class MenuTests(unittest.TestCase):
 
 
 class PreviewTests(unittest.TestCase):
+    def test_gallery_images_have_matching_dimensions_and_bilingual_alt_text(self):
+        class ImageParser(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.images = []
+
+            def handle_starttag(self, tag, attrs):
+                if tag == "img":
+                    self.images.append(dict(attrs))
+
+        root = Path(__file__).parent
+        parser = ImageParser()
+        parser.feed((root / "index.html").read_text())
+        self.assertEqual(len(parser.images), 3)
+        for image in parser.images:
+            with self.subTest(image=image["src"]):
+                data = (root / image["src"]).read_bytes()
+                self.assertEqual(data[:8], b"\x89PNG\r\n\x1a\n")
+                self.assertEqual(int(image["width"]), int.from_bytes(data[16:20], "big"))
+                self.assertEqual(int(image["height"]), int.from_bytes(data[20:24], "big"))
+                self.assertTrue(image["alt"])
+                self.assertTrue(image["data-fa-alt"])
+
     def test_preview_matches_actual_shell_menu(self):
         class TerminalParser(HTMLParser):
             def __init__(self):

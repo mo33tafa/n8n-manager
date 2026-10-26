@@ -1,5 +1,9 @@
 # ModernSoft n8n Manager
 
+[**English**](README.md) | [**فارسی**](README.fa.md)
+
+The [project preview](index.html) includes a Persian/English language button and images rendered from the actual terminal interface. The CLI itself remains in English.
+
 **Your workflows. Your infrastructure.**
 
 A menu-driven command-line tool for installing and managing n8n on a Linux server. Deploy with PostgreSQL, enable optional HTTPS, create private backups and upgrade to an explicitly selected version.
@@ -48,6 +52,14 @@ The tool does **not** install Docker, change firewall rules, configure DNS or cr
 6. After installation, **create the n8n owner account immediately**. No default n8n login is configured.
 
 Choose a currently supported version from the [official n8n releases](https://github.com/n8n-io/n8n/releases). Version examples shown by the tool illustrate syntax; they are not recommendations or verified current releases.
+
+### Environment images
+
+These images are rendered from actual CLI output, not screenshots of a deployed n8n server. The guided setup example was cancelled before installation; its version is an input example, not a release recommendation.
+
+| Main menu | Guided setup | Help |
+| --- | --- | --- |
+| [![Main menu](assets/menu.png)](assets/menu.png) | [![Guided setup, cancelled before installation](assets/setup.png)](assets/setup.png) | [![Help and prerequisites](assets/help.png)](assets/help.png) |
 
 ### Terminal preview
 
@@ -175,8 +187,12 @@ removes the installation's containers and network. Named volumes, settings and b
 ├── n8n.sh                 Shell entry point
 ├── n8n_manager.py         Interactive menu and deployment operations
 ├── test_n8n_manager.py    Unit and regression tests
-├── index.html             Static project and terminal preview
-├── README.md              Usage and operational guidance
+├── index.html             Bilingual project and terminal preview
+├── preview.js             Language switch and saved preference
+├── test_preview.js        Language-switch tests (Node.js)
+├── assets/                Images rendered from actual CLI output
+├── README.md              English usage and operational guidance
+├── README.fa.md           Persian usage and operational guidance
 ├── LICENSE                MIT terms and copyright notice
 ├── CONTRIBUTING.md        Contribution guidelines
 └── SECURITY.md            Security guidance
@@ -194,6 +210,14 @@ bash -n n8n.sh
 ```
 
 The suite covers configuration generation, validation, lifecycle safeguards, backup and update behavior, menu interactions and agreement between the HTML preview and the actual terminal menu. Docker operations are mocked in unit tests; these tests do **not** prove a real deployment, certificate issuance or successful recovery.
+
+The language switch also has dependency-free tests, requiring Node.js 18+ for development only:
+
+```bash
+node --test test_preview.js
+```
+
+These tests exercise translations, RTL direction, persistence and disabled browser storage using a minimal document fixture. They do not launch a browser or verify visual layout. Node.js is not required to run the deployment manager.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution expectations.
 
