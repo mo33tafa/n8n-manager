@@ -263,7 +263,7 @@ def parser():
     )
     cli.add_argument("--directory", type=Path, default=Path.cwd() / "n8n-managed", help="Dedicated installation directory (default: ./n8n-managed)")
     commands = cli.add_subparsers(dest="command")
-    commands.add_parser("menu", help="Open the ModernSoft interactive Persian menu (default)")
+    commands.add_parser("menu", help="Open the ModernSoft interactive menu (default)")
     install = commands.add_parser("install", help="Create and start a new installation")
     install.add_argument("--version", type=version, required=True, help="Exact n8n stable version to install")
     install.add_argument("--domain", type=domain_name, default="", help="Public DNS domain; omit for loopback-only mode")
@@ -318,113 +318,113 @@ def menu_value(prompt, validator, hint, default=None):
 
 
 def menu_confirm(message):
-    return menu_input(message + " [بله/خیر، پیش‌فرض: خیر]: ").lower() in {"بله", "yes", "y"}
+    return menu_input(message + " [yes/no, default: no]: ").lower() in {"yes", "y"}
 
 
 def menu(directory):
-    digits = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
+    digits = str.maketrans("\u06f0\u06f1\u06f2\u06f3\u06f4\u06f5\u06f6\u06f7\u06f8\u06f9\u0660\u0661\u0662\u0663\u0664\u0665\u0666\u0667\u0668\u0669", "01234567890123456789")
     actions = {"2": "doctor", "3": "start", "4": "stop", "5": "restart",
                "6": "status", "7": "logs", "8": "backup", "10": "uninstall"}
-    labels = {"install": "نصب", "doctor": "بررسی پیش‌نیازها", "start": "راه‌اندازی",
-              "stop": "توقف", "restart": "راه‌اندازی مجدد", "status": "نمایش وضعیت",
-              "logs": "نمایش گزارش‌ها", "backup": "پشتیبان‌گیری", "update": "به‌روزرسانی",
-              "uninstall": "حذف سرویس"}
+    labels = {"install": "Install", "doctor": "Check prerequisites", "start": "Start services",
+              "stop": "Stop services", "restart": "Restart n8n", "status": "Show status",
+              "logs": "Show logs", "backup": "Create backup", "update": "Update n8n",
+              "uninstall": "Uninstall services"}
     try:
         while True:
             print("\n" + "=" * 48)
             print("                   ModernSoft")
-            print("          نصب و مدیریت آسان n8n")
+            print("          n8n Installation & Management")
             print("=" * 48)
-            print(f"پوشهٔ نصب انتخاب‌شده: {os.path.relpath(directory)}")
-            print("۱. نصب جدید (راهنمای قدم‌به‌قدم)")
-            print("۲. بررسی پیش‌نیازهای سرور")
-            print("۳. روشن کردن سرویس‌ها")
-            print("۴. خاموش کردن سرویس‌ها (بدون حذف اطلاعات)")
-            print("۵. راه‌اندازی مجدد n8n")
-            print("۶. نمایش وضعیت سرویس‌ها")
-            print("۷. نمایش ۱۰۰ خط آخر گزارش‌ها")
-            print("۸. تهیهٔ نسخهٔ پشتیبان")
-            print("۹. به‌روزرسانی n8n (با بکاپ قبل از ارتقا)")
-            print("۱۰. حذف سرویس‌ها (با حفظ اطلاعات و بکاپ‌ها)")
-            print("۱۱. انتخاب پوشهٔ نصب دیگر")
-            print("۱۲. راهنما و پیش‌نیازها")
-            print("۰. خروج")
-            print("در هر پرسش با q به منو برگردید؛ بدون تأیید، عملیاتی انجام نمی‌شود.")
+            print(f"Installation directory: {os.path.relpath(directory)}")
+            print("1. Install n8n (guided setup)")
+            print("2. Check server prerequisites")
+            print("3. Start services")
+            print("4. Stop services (keep data)")
+            print("5. Restart n8n")
+            print("6. Show service status")
+            print("7. Show logs (last 100 lines)")
+            print("8. Create backup")
+            print("9. Update n8n (backup before upgrade)")
+            print("10. Uninstall services (keep data and backups)")
+            print("11. Change installation directory")
+            print("12. Help & prerequisites")
+            print("0. Exit")
+            print("Enter q at any prompt to return. Operations require confirmation.")
             try:
-                choice = menu_input("شمارهٔ گزینه: ").translate(digits)
+                choice = menu_input("Select an option: ").translate(digits)
                 if choice == "0":
-                    print("از ModernSoft استفاده کردید؛ خدانگهدار.")
+                    print("Thank you for using ModernSoft. Goodbye.")
                     return 0
                 if choice == "12":
-                    print("\nاین ابزار را روی سرور لینوکسی با Python 3.10+، Docker Engine و Docker Compose v2 اجرا کنید.")
-                    print("برای شروع گزینهٔ ۲ و سپس ۱ را انتخاب کنید. این ابزار Docker را خودکار نصب نمی‌کند.")
-                    print("نسخهٔ دقیق n8n را از انتشارهای رسمی انتخاب کنید؛ latest پذیرفته نمی‌شود.")
-                    print("برای HTTPS، دامنه باید به سرور متصل باشد و پورت‌های ۸۰ و ۴۴۳ باز باشند.")
-                    print("بدون دامنه، دسترسی فقط محلی و از طریق تونل SSH است؛ روی IP عمومی منتشر نمی‌شود.")
-                    print("بکاپ و آپدیت باعث توقف موقت n8n می‌شوند. بکاپ محرمانه است؛ بازیابی آن دستی است.")
-                    print("پس از نصب، حساب مالک را فوراً داخل n8n بسازید. رمز پیش‌فرض وجود ندارد.")
-                    print("همیشه از همان کاربر سیستم و همان پوشهٔ نصب استفاده کنید؛ گزینهٔ ۱۱ پوشه را تغییر می‌دهد.")
+                    print("\nRun on Linux with Python 3.10+, Docker Engine and Docker Compose v2.")
+                    print("Start with option 2, then option 1. Docker is not installed automatically.")
+                    print("Choose an exact n8n version from official releases; latest is not accepted.")
+                    print("HTTPS requires a domain pointing to this server and inbound TCP ports 80/443.")
+                    print("Without a domain, access is local-only through an SSH tunnel, not the public IP.")
+                    print("Backups and updates briefly stop n8n. Backups are private; recovery is manual.")
+                    print("Create the owner account immediately after installation. There is no default password.")
+                    print("Always use the same OS user and installation directory. Option 11 changes the directory.")
                     continue
                 if choice == "11":
-                    value = menu_input("مسیر پوشهٔ نصب (Enter: بدون تغییر): ")
+                    value = menu_input("Installation directory (Enter: keep current): ")
                     if value:
                         try:
                             selected = Path(value).expanduser().resolve()
                         except (OSError, RuntimeError, ValueError):
-                            print("مسیر معتبر و قابل دسترسی وارد کنید.")
+                            print("Enter a valid, accessible directory path.")
                             continue
                         if selected == selected.parent:
-                            print("ریشهٔ سیستم مجاز نیست؛ یک پوشهٔ اختصاصی انتخاب کنید.")
+                            print("The filesystem root is not allowed. Choose a dedicated directory.")
                         else:
                             directory = selected
                     continue
                 options = []
                 if choice in {"1", "9"}:
                     action = "install" if choice == "1" else "update"
-                    print("نسخهٔ دقیق انتشار رسمی را وارد کنید (سه عدد با نقطه، نه latest).")
-                    target = menu_value("نسخهٔ n8n: ", lambda v: version(v.translate(digits)),
-                                        "نسخه نامعتبر است؛ سه عدد با نقطه وارد کنید، مانند 2.1.0.")
+                    print("Enter an exact official release version (three numbers separated by dots, not latest).")
+                    target = menu_value("n8n version: ", lambda v: version(v.translate(digits)),
+                                        "Invalid version. Use three numbers separated by dots, such as 2.1.0.")
                     options = ["--version", target]
                     if action == "install":
-                        print("دامنه اختیاری است؛ خالی یعنی نصب امنِ محلی و دسترسی با تونل SSH.")
-                        domain = menu_value("دامنه (بدون https://؛ Enter: محلی): ",
+                        print("A domain is optional. Leave blank for local-only access through an SSH tunnel.")
+                        domain = menu_value("Domain (no https://; Enter: local-only): ",
                                             lambda v: domain_name(v) if v else "",
-                                            "دامنه معتبر و بدون مسیر یا پورت وارد کنید.", default="")
-                        timezone = menu_value("منطقهٔ زمانی [Asia/Tehran]: ", timezone_name,
-                                              "منطقهٔ زمانی معتبر وارد کنید؛ مانند Asia/Tehran یا UTC.",
+                                            "Enter a valid domain without a path or port.", default="")
+                        timezone = menu_value("Timezone [Asia/Tehran]: ", timezone_name,
+                                              "Enter a valid timezone, such as Asia/Tehran or UTC.",
                                               default="Asia/Tehran")
                         options += ["--domain", domain, "--timezone", timezone]
-                        print(f"نسخه: {target} | دامنه: {domain or 'محلی؛ فقط تونل SSH'} | منطقهٔ زمانی: {timezone}")
+                        print(f"Version: {target} | Domain: {domain or 'local-only; SSH tunnel'} | Timezone: {timezone}")
                     else:
-                        print(f"نسخهٔ مقصد: {target}. یادداشت‌های مهاجرت این نسخه را بررسی کنید؛ بازگشت خودکار وجود ندارد.")
+                        print(f"Target version: {target}. Review migration notes first; there is no automatic rollback.")
                 elif choice in actions:
                     action = actions[choice]
                 else:
-                    print("گزینه نامعتبر است؛ یکی از شماره‌های منو را انتخاب کنید.")
+                    print("Invalid option. Select a number from the menu.")
                     continue
                 if action in {"stop", "restart", "backup", "update"}:
-                    print("هشدار: این عملیات می‌تواند n8n و گردش‌کارهای در حال اجرا را موقتاً متوقف کند.")
+                    print("Warning: this operation may temporarily stop n8n and interrupt running workflows.")
                 if action == "backup":
-                    print("بکاپ شامل اطلاعات محرمانه است؛ آن را خصوصی و در جای امن نگهداری کنید.")
+                    print("Backups contain sensitive information. Keep them private and store them securely.")
                 if action == "logs":
-                    print("گزارش‌ها ممکن است اطلاعات خصوصی داشته باشند؛ پیش از اشتراک‌گذاری بررسی کنید.")
+                    print("Logs may contain private information. Review them before sharing.")
                 if action == "uninstall":
-                    print("کانتینرها و شبکه حذف می‌شوند؛ اطلاعات، تنظیمات و بکاپ‌ها باقی می‌مانند.")
+                    print("Containers and the network will be removed. Data, settings and backups will be retained.")
                     options = ["--confirm"]
-                if not menu_confirm(f"عملیات «{labels[action]}» در پوشهٔ {os.path.relpath(directory)} انجام شود؟"):
-                    print("عملیات لغو شد؛ تغییری انجام نشد.")
+                if not menu_confirm(f"Run '{labels[action]}' in {os.path.relpath(directory)}?"):
+                    print("Operation cancelled. No changes were made.")
                     continue
                 result = main(["--directory", str(directory), action, *options])
                 if result == 0:
-                    print("عملیات با موفقیت انجام شد.")
+                    print("Operation completed successfully.")
                     if action == "install":
-                        print("نصب تمام شد؛ حساب مالک را فوراً در n8n ایجاد کنید.")
+                        print("Installation finished. Create the owner account in n8n immediately.")
                 else:
-                    print("عملیات کامل نشد؛ پیام خطا را بررسی کنید. برای بررسی، گزینهٔ ۲ یا ۶ را انتخاب کنید.")
+                    print("Operation did not complete. Review the error; use option 2 or 6 to investigate.")
             except MenuCancelled:
-                print("بازگشت به منو؛ عملیاتی شروع نشد.")
+                print("Returning to the menu. No operation was started.")
     except (EOFError, KeyboardInterrupt):
-        print("\nخروج از منوی ModernSoft.")
+        print("\nExiting the ModernSoft menu.")
         return 0
 
 

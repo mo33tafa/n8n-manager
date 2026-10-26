@@ -1,5 +1,6 @@
 import argparse
 import contextlib
+from html.parser import HTMLParser
 import io
 import json
 from pathlib import Path
@@ -241,19 +242,19 @@ class MenuTests(unittest.TestCase):
         self.assertFalse(self.directory.exists())
 
     def test_persian_and_arabic_numbers(self):
-        command = self.run_menu(["۶", "بله", "٦", "yes", "۰"])
+        command = self.run_menu(["۶", "yes", "٦", "yes", "۰"])
         self.assertEqual(command.call_count, 2)
         command.assert_called_with(["--directory", str(self.directory), "status"])
 
     def test_install_wizard_retries_invalid_fields(self):
         command = self.run_menu(["1", "latest", "۲.۱.۰", "https://bad", "n8n.example.com", "Bad/Zone", "UTC", "yes", "0"])
         command.assert_called_once_with(["--directory", str(self.directory), "install", "--version", "2.1.0", "--domain", "n8n.example.com", "--timezone", "UTC"])
-        self.assertIn("نسخه نامعتبر", self.output.getvalue())
+        self.assertIn("Invalid version", self.output.getvalue())
 
     def test_local_install_defaults(self):
-        command = self.run_menu(["1", "2.1.0", "", "", "بله", "0"])
+        command = self.run_menu(["1", "2.1.0", "", "", "yes", "0"])
         command.assert_called_once_with(["--directory", str(self.directory), "install", "--version", "2.1.0", "--domain", "", "--timezone", "Asia/Tehran"])
-        self.assertIn("تونل SSH", self.output.getvalue())
+        self.assertIn("SSH tunnel", self.output.getvalue())
 
     def test_cancel_wizard_with_q(self):
         command = self.run_menu(["1", "q", "0"])
@@ -264,14 +265,14 @@ class MenuTests(unittest.TestCase):
         command.assert_not_called()
 
     def test_uninstall_requires_confirmation(self):
-        command = self.run_menu(["10", "بله", "0"])
+        command = self.run_menu(["10", "yes", "0"])
         command.assert_called_once_with(["--directory", str(self.directory), "uninstall", "--confirm"])
-        self.assertIn("باقی می‌مانند", self.output.getvalue())
+        self.assertIn("will be retained", self.output.getvalue())
 
     def test_update_requires_exact_version_and_confirmation(self):
         command = self.run_menu(["9", "2.2.0", "y", "0"])
         command.assert_called_once_with(["--directory", str(self.directory), "update", "--version", "2.2.0"])
-        self.assertIn("متوقف", self.output.getvalue())
+        self.assertIn("temporarily stop", self.output.getvalue())
 
     def test_all_simple_options(self):
         for choice, action in {"2": "doctor", "3": "start", "4": "stop", "5": "restart", "6": "status", "7": "logs", "8": "backup"}.items():
@@ -282,13 +283,13 @@ class MenuTests(unittest.TestCase):
     def test_failed_operation_returns_to_menu(self):
         command = self.run_menu(["6", "yes", "0"], result=1)
         command.assert_called_once()
-        self.assertIn("عملیات کامل نشد", self.output.getvalue())
+        self.assertIn("Operation did not complete", self.output.getvalue())
         self.assertGreaterEqual(self.output.getvalue().count("ModernSoft"), 2)
 
     def test_help_and_invalid_selection_do_not_run_commands(self):
         command = self.run_menu(["invalid", "12", "0"])
         command.assert_not_called()
-        self.assertIn("گزینه نامعتبر", self.output.getvalue())
+        self.assertIn("Invalid option", self.output.getvalue())
         self.assertIn("Docker", self.output.getvalue())
 
     def test_change_directory(self):
@@ -304,13 +305,52 @@ class MenuTests(unittest.TestCase):
     def test_invalid_directory_returns_to_menu(self):
         command = self.run_menu(["11", "bad\x00path", "0"])
         command.assert_not_called()
-        self.assertIn("مسیر معتبر", self.output.getvalue())
+        self.assertIn("valid, accessible directory", self.output.getvalue())
+
+    def test_menu_output_is_english(self):
+        self.run_menu(["12", "1", "latest", "2.1.0", "bad/domain", "", "Bad/Zone", "", "no",
+                       "9", "2.2.0", "no", "invalid", "11", "/", "6", "yes", "0"])
+        self.assertTrue(self.output.getvalue().isascii())
+        with patch("builtins.input", return_value="yes") as prompt:
+            self.assertTrue(app.menu_confirm("Continue?"))
+        prompt.assert_called_once_with("Continue? [yes/no, default: no]: ")
 
     def test_eof_and_keyboard_interrupt_exit_cleanly(self):
         for interruption in (EOFError, KeyboardInterrupt):
             with self.subTest(interruption=interruption):
                 command = self.run_menu([interruption])
                 command.assert_not_called()
+
+
+class PreviewTests(unittest.TestCase):
+    def test_preview_matches_actual_shell_menu(self):
+        class TerminalParser(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.in_pre = False
+                self.text = ""
+
+            def handle_starttag(self, tag, attrs):
+                if tag == "pre":
+                    self.in_pre = True
+
+            def handle_endtag(self, tag):
+                if tag == "pre":
+                    self.in_pre = False
+
+            def handle_data(self, data):
+                if self.in_pre:
+                    self.text += data
+
+        root = Path(__file__).parent
+        preview = TerminalParser()
+        preview.feed((root / "index.html").read_text())
+        result = subprocess.run(["bash", str(root / "n8n.sh")], input="0\n", text=True,
+                                capture_output=True, timeout=10, cwd=root, check=True)
+        actual = result.stdout.split("Select an option:")[0].strip()
+        expected = preview.text.split("$ bash n8n.sh", 1)[1].split("Select an option:")[0].strip()
+        self.assertEqual(actual, expected)
+        self.assertTrue(result.stdout.isascii())
 
 
 if __name__ == "__main__":
