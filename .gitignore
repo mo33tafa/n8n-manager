@@ -1,0 +1,9 @@
+uploads/
+__pycache__/
+*.py[cod]
+.env
+.env.*
+backups/
+n8n-managed/
+.venv/
+.*.manager.lock
